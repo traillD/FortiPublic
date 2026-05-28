@@ -1,1 +1,158 @@
-hub config
+IPsec
+
+config vpn ipsec phase1-interface
+    edit "VPN1"
+        set type dynamic
+        set interface "port2"
+        set ike-version 2
+        set peertype any
+        set net-device disable
+        set mode-cfg enable
+        set proposal aes256-sha256
+        set dpd on-idle
+        set dhgrp 20 21
+        set network-overlay enable
+        set network-id 1
+        set transport auto
+        set ipv4-start-ip 169.254.96.1
+        set ipv4-end-ip 169.254.96.252
+        set ipv4-netmask 255.255.255.0
+        set psksecret <psk here>
+    next
+    edit "VPN2"
+        set type dynamic
+        set interface "port3"
+        set ike-version 2
+        set peertype any
+        set net-device disable
+        set mode-cfg enable
+        set proposal aes256-sha256
+        set dpd on-idle
+        set dhgrp 20 21
+        set network-overlay enable
+        set network-id 2
+        set transport auto
+        set ipv4-start-ip 169.254.97.1
+        set ipv4-end-ip 169.254.97.252
+        set ipv4-netmask 255.255.255.0
+        set psksecret <psk here>
+        set dpd-retryinterval 60
+    next
+end
+config vpn ipsec phase2-interface
+    edit "VPN1"
+        set phase1name "VPN1"
+        set proposal aes256-sha256
+        set dhgrp 20 21
+    next
+    edit "VPN2"
+        set phase1name "VPN2"
+        set proposal aes256-sha256
+        set dhgrp 20 21
+    next
+end
+
+Route-Maps
+
+config router community-list
+    edit "Priority_1"
+        config rule
+            edit 1
+                set action permit
+                set match "65000:1"
+            next
+        end
+    next
+    edit "Priority_2"
+        config rule
+            edit 1
+                set action permit
+                set match "65000:2"
+            next
+        end
+    next
+    edit "Priority_9999"
+        config rule
+            edit 1
+                set action permit
+                set match "65000:9999"
+            next
+        end
+    next
+end
+config router route-map
+    edit "RM-VPN-Priority"
+        config rule
+            edit 1
+                set match-community "Priority_1"
+                unset set-ip-prefsrc
+                set set-priority 1
+            next
+            edit 2
+                set match-community "Priority_2"
+                unset set-ip-prefsrc
+                set set-priority 2
+            next
+            edit 3
+                set match-community "Priority_9999"
+                unset set-ip-prefsrc
+                set set-priority 9999
+            next
+        end
+    next
+end
+
+BGP
+
+config router bgp
+    set as 65001
+    set ebgp-multipath enable
+    config neighbor-group
+        edit "VPN1"
+            set capability-graceful-restart enable
+            set link-down-failover enable
+            set next-hop-self enable
+            set soft-reconfiguration enable
+            set remote-as 65000
+            set route-map-in "RM-VPN-Priority"
+        next
+        edit "VPN2"
+            set capability-graceful-restart enable
+            set link-down-failover enable
+            set next-hop-self enable
+            set soft-reconfiguration enable
+            set remote-as 65000
+            set route-map-in "RM-VPN-Priority"
+        next
+    end
+    config neighbor-range
+        edit 1
+            set prefix 169.254.96.0 255.255.255.0
+            set neighbor-group "VPN1"
+        next
+        edit 2
+            set prefix 169.254.97.0 255.255.255.0
+            set neighbor-group "VPN2"
+        next
+    end
+    config redistribute "connected"
+    end
+    config redistribute "rip"
+    end
+    config redistribute "ospf"
+    end
+    config redistribute "static"
+    end
+    config redistribute "isis"
+    end
+    config redistribute6 "connected"
+    end
+    config redistribute6 "rip"
+    end
+    config redistribute6 "ospf"
+    end
+    config redistribute6 "static"
+    end
+    config redistribute6 "isis"
+    end
+end

@@ -1,1 +1,177 @@
-spoke config
+IPsec
+config vpn ipsec phase1-interface
+    edit "Hub1-VPN1"
+        set interface "port2"
+        set ike-version 2
+        set peertype any
+        set net-device disable
+        set mode-cfg enable
+        set proposal aes256-sha256
+        set dhgrp 20 21
+        set network-overlay enable
+        set network-id 1
+        set transport auto
+        set remote-gw 10.1.1.1
+        set psksecret ENC 0/uumWn/qTf2pivCM1XiMSJZ99M2rmQy/LMloC7VHmYBk/9Y4txCvJjr5LiIoJhS+96CAJWN2pYAnWpP7X+b9giw7WToHqwGXMYFPcTAhc9K48ZWZX5awemlHW4rlzHZwwr4ga+zd4x74eZeKzW9uB/WVo3mq/UdmuQW0DcuZhekZUtZ5gdBNaOrhlxZYCd8y8b7UVlmMjY3dkVA
+    next
+    edit "Hub1-VPN2"
+        set interface "port3"
+        set ike-version 2
+        set peertype any
+        set net-device disable
+        set mode-cfg enable
+        set proposal aes256-sha256
+        set dhgrp 20 21
+        set network-overlay enable
+        set network-id 2
+        set transport auto
+        set remote-gw 10.2.1.1
+        set psksecret ENC ZzhKt3pHCDIz6LizBHCN1W+du2ktrJgxqjLr6rCt8eWfWni0sokKpn2JZGYqy6WfaLldnPqud9pDTHpPJ1i2c06Ky+WQgw1uVjVbsnn9w4rtturG/XnGflxpfQiga1OOtK/jYCQ4RvO3z3uQ11MozCOm3qBjT7l2hvw3R2x9/mkbQW2bpb+yf+Y6m6PFQ8GzKMNGLVlmMjY3dkVA
+    next
+end
+config vpn ipsec phase2-interface
+    edit "Hub1-VPN1"
+        set phase1name "Hub1-VPN1"
+        set proposal aes256-sha256
+        set dhgrp 20 21
+    next
+    edit "Hub1-VPN2"
+        set phase1name "Hub1-VPN2"
+        set proposal aes256-sha256
+        set dhgrp 20 21
+    next
+end
+
+SD-WAN
+config system sdwan
+    set status enable
+    config zone
+        edit "virtual-wan-link"
+        next
+        edit "Hub1"
+        next
+    end
+    config members
+        edit 1
+            set interface "Hub1-VPN1"
+            set zone "Hub1"
+        next
+        edit 2
+            set interface "Hub1-VPN2"
+            set zone "Hub1"
+        next
+    end
+    config health-check
+        edit "Hub1HC"
+            set server "172.16.1.1"
+            set update-static-route disable
+            set members 1 2
+            config sla
+                edit 1
+                    set link-cost-factor latency jitter packet-loss
+                    set latency-threshold 50
+                    set jitter-threshold 20
+                    set packetloss-threshold 2
+                next
+            end
+        next
+    end
+    config neighbor
+        edit "169.254.96.253"
+            set member 1
+            set health-check "Hub1HC"
+            set sla-id 1
+        next
+        edit "169.254.97.253"
+            set member 2
+            set health-check "Hub1HC"
+            set sla-id 1
+        next
+    end
+end
+
+Route Maps
+
+config router route-map
+    edit "Priority_9999"
+        config rule
+            edit 1
+                set set-community "65000:9999"
+                unset set-ip-prefsrc
+            next
+        end
+    next
+    edit "Priority_1"
+        config rule
+            edit 1
+                set set-community "65000:1"
+                unset set-ip-prefsrc
+            next
+        end
+    next
+    edit "Priority_2"
+        config rule
+            edit 1
+                set set-community "65000:2"
+                unset set-ip-prefsrc
+            next
+        end
+    next
+end
+
+BGP 
+
+config router bgp
+    set as 65000
+    config neighbor
+        edit "169.254.96.253"
+            set advertisement-interval 1
+            set capability-graceful-restart enable
+            set link-down-failover enable
+            set soft-reconfiguration enable
+            set description "Hub1-VPN1"
+            set interface "Hub1-VPN1"
+            set remote-as 65001
+            set route-map-out "Priority_9999"
+            set route-map-out-preferable "Priority_1"
+            set connect-timer 10
+        next
+        edit "169.254.97.253"
+            set advertisement-interval 1
+            set capability-graceful-restart enable
+            set link-down-failover enable
+            set soft-reconfiguration enable
+            set description "Hub1-VPN2"
+            set interface "Hub1-VPN2"
+            set remote-as 65001
+            set route-map-out "Priority_9999"
+            set route-map-out-preferable "Priority_2"
+            set connect-timer 10
+        next
+    end
+    config network
+        edit 1
+            set prefix 172.17.1.0 255.255.255.0
+        next
+    end
+    config redistribute "connected"
+    end
+    config redistribute "rip"
+    end
+    config redistribute "ospf"
+    end
+    config redistribute "static"
+    end
+    config redistribute "isis"
+    end
+    config redistribute6 "connected"
+    end
+    config redistribute6 "rip"
+    end
+    config redistribute6 "ospf"
+    end
+    config redistribute6 "static"
+    end
+    config redistribute6 "isis"
+    end
+end
